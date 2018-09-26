@@ -30,192 +30,173 @@ import org.keycloak.provider.ProviderConfigProperty;
 
 import org.keycloak.services.validation.Validation;
 
-public class UserEmailValidation implements FormAction, FormActionFactory{
+public class UserEmailValidation implements FormAction, FormActionFactory {
 
 	private static final String PROVIDER_ID = "registration-user-mail-validation";
+	private static final String EMAIL_WHITELIST_NOT_PROVIDED = "There list of permitted e-mail addresses is not configured. Please consult an administrator.";
 	private static final String EMAIL_NOT_ALLOWED = "This e-mail address can't be used for registration";
-	
 	private static final String EMAIL_READ_FILE = "Problems to read the File with the valid e-mails adress for the user";
-	
 	private static final String EMAIL_CLOSE_FILE = "Problems to close the File with the valid e-mails adress for the user";
 
-	
-	private List<String> allowed_emails = new ArrayList<String>();
+	private List<String> allowedEmails = new ArrayList<>();
 	private List<FormMessage> errors = new ArrayList<>();
-	
+
 	@Override
 	public void validate(ValidationContext context) {
-		 	
-		
-			MultivaluedMap<String, String> formData = context.getHttpRequest().getDecodedFormParameters();
-	       
-	        context.getEvent().detail(Details.REGISTER_METHOD, "form");
 
-	        String email = formData.getFirst(Validation.FIELD_EMAIL).trim();
-	        context.getEvent().detail(Details.EMAIL, email);
-	        
-	        
-	        boolean isEmailAllowed = false;
-	      
-	        for(String allowed_email: allowed_emails ) {
-	           
-	        	if( allowed_email.equals(email)) {
-	        		isEmailAllowed = true;
-	            	break;
-	        	} 
-	        }
-	       
-	        if (! isEmailAllowed) {
-	        	context.error(EMAIL_NOT_ALLOWED);
-	        	errors.add(new FormMessage(RegistrationPage.FIELD_EMAIL, EMAIL_NOT_ALLOWED));
-	        	context.validationError(formData, errors);
-	        	return;
-            } else {
-           
-            	context.success();
-            }	
+		MultivaluedMap<String, String> formData = context.getHttpRequest().getDecodedFormParameters();
 
+		context.getEvent().detail(Details.REGISTER_METHOD, "form");
+
+		String email = formData.getFirst(Validation.FIELD_EMAIL).trim();
+		context.getEvent().detail(Details.EMAIL, email);
+
+		if (allowedEmails == null || allowedEmails.isEmpty()) {
+			context.error(EMAIL_WHITELIST_NOT_PROVIDED);
+			errors.add(new FormMessage(RegistrationPage.FIELD_EMAIL, EMAIL_WHITELIST_NOT_PROVIDED));
+			context.validationError(formData, errors);
+		} else {
+			boolean isEmailAllowed = false;
+			for (String allowedEmail : allowedEmails) {
+				if (allowedEmail.equalsIgnoreCase(email)) {
+					isEmailAllowed = true;
+					break;
+				}
+			}
+
+			if (!isEmailAllowed) {
+				context.error(EMAIL_NOT_ALLOWED);
+				errors.add(new FormMessage(RegistrationPage.FIELD_EMAIL, EMAIL_NOT_ALLOWED));
+				context.validationError(formData, errors);
+			} else {
+				context.success();
+			}
+		}
 	}
-
-	
 
 	@Override
 	public void init(Scope arg0) {
 		readUsersEmailsAddressFile();
 	}
-	
-	public void readUsersEmailsAddressFile () {
-		
 
-        BufferedReader bufferedReader = null; 
-       
-        //String filePath ="/Users/adro/documents/User_EMails.txt"; 
-        String filePath = System.getenv("EMAIL_WHITE_LIST");
-       
-        File file = new File(filePath); 
-        
-        try { 
-            bufferedReader = new BufferedReader(new FileReader(file)); 
-            String line; 
-        
-            while (null != (line = bufferedReader.readLine())) { 
-           
-            	allowed_emails.add(line.trim());
-            }
-           
-        } catch (IOException e) { 
-        	errors.add(new FormMessage(RegistrationPage.FIELD_EMAIL, EMAIL_READ_FILE));
-      	  	e.printStackTrace(); 
-        	
-        } finally { 
-          if (null != bufferedReader) { 
-            try { 
-              bufferedReader.close(); 
-            } catch (IOException e) { 
-            	errors.add(new FormMessage(RegistrationPage.FIELD_EMAIL, EMAIL_CLOSE_FILE));
-                e.printStackTrace(); 
-            } 
-          } 
-        } 
-		
+	public void readUsersEmailsAddressFile() {
+
+		BufferedReader bufferedReader = null;
+		String filePath = System.getenv("EMAIL_WHITE_LIST");
+		if (filePath == null || filePath.equals("")) {
+			return;
+		}
+
+		File file = new File(filePath);
+		if (!file.exists()) {
+			return;
+		}
+
+		try {
+			bufferedReader = new BufferedReader(new FileReader(file));
+			String line;
+
+			while (null != (line = bufferedReader.readLine())) {
+				allowedEmails.add(line.trim());
+			}
+
+		} catch (IOException e) {
+			errors.add(new FormMessage(RegistrationPage.FIELD_EMAIL, EMAIL_READ_FILE));
+			e.printStackTrace();
+		} finally {
+			if (null != bufferedReader) {
+				try {
+					bufferedReader.close();
+				} catch (IOException e) {
+					errors.add(new FormMessage(RegistrationPage.FIELD_EMAIL, EMAIL_CLOSE_FILE));
+					e.printStackTrace();
+				}
+			}
+		}
 	}
-
-	
 
 	@Override
 	public String getDisplayType() {
-		return "Registration User Email Allowed Vaidation";
+		return "Registration User Email Allowed Validation";
 	}
-	
-	
+
 	@Override
 	public String getHelpText() {
-		return "Validates the user email adress of the user in validation phase.  In success phase, this will create the user in the database.";
+		return "Validates the user email adress of the user in validation phase. If the user email adress is in the list of allowed emails it will be valid.";
 
 	}
 
+	@Override
+	public void buildPage(FormContext context, LoginFormsProvider form) {
+		// complete
+	}
 
-	 @Override
-	    public void buildPage(FormContext context, LoginFormsProvider form) {
-	        // complete
-	    }
+	@Override
+	public boolean requiresUser() {
+		return false;
+	}
 
-	    @Override
-	    public boolean requiresUser() {
-	        return false;
-	    }
+	@Override
+	public boolean configuredFor(KeycloakSession session, RealmModel realm, UserModel user) {
+		return true;
+	}
 
-	    @Override
-	    public boolean configuredFor(KeycloakSession session, RealmModel realm, UserModel user) {
-	        return true;
-	    }
+	@Override
+	public void setRequiredActions(KeycloakSession session, RealmModel realm, UserModel user) {
 
-	    @Override
-	    public void setRequiredActions(KeycloakSession session, RealmModel realm, UserModel user) {
+	}
 
-	    }
+	@Override
+	public boolean isUserSetupAllowed() {
+		return false;
+	}
 
-	    @Override
-	    public boolean isUserSetupAllowed() {
-	        return false;
-	    }
+	@Override
+	public void close() {
 
+	}
 
-	    @Override
-	    public void close() {
+	@Override
+	public String getReferenceCategory() {
+		return null;
+	}
 
-	    }
+	@Override
+	public boolean isConfigurable() {
+		return false;
+	}
 
-	  
+	private static AuthenticationExecutionModel.Requirement[] REQUIREMENT_CHOICES = {
+			AuthenticationExecutionModel.Requirement.REQUIRED, AuthenticationExecutionModel.Requirement.DISABLED };
 
-	    @Override
-	    public String getReferenceCategory() {
-	        return null;
-	    }
+	@Override
+	public AuthenticationExecutionModel.Requirement[] getRequirementChoices() {
+		return REQUIREMENT_CHOICES;
+	}
 
-	    @Override
-	    public boolean isConfigurable() {
-	        return false;
-	    }
+	@Override
+	public FormAction create(KeycloakSession session) {
+		return this;
+	}
 
-	    private static AuthenticationExecutionModel.Requirement[] REQUIREMENT_CHOICES = {
-	            AuthenticationExecutionModel.Requirement.REQUIRED,
-	            AuthenticationExecutionModel.Requirement.DISABLED
-	    };
-	    @Override
-	    public AuthenticationExecutionModel.Requirement[] getRequirementChoices() {
-	        return REQUIREMENT_CHOICES;
-	    }
-	    @Override
-	    public FormAction create(KeycloakSession session) {
-	        return this;
-	    }
+	@Override
+	public void postInit(KeycloakSessionFactory factory) {
 
-	  
+	}
 
-	    @Override
-	    public void postInit(KeycloakSessionFactory factory) {
+	@Override
+	public String getId() {
+		return PROVIDER_ID;
+	}
 
-	    }
+	@Override
+	public List<ProviderConfigProperty> getConfigProperties() {
+		return null;
+	}
 
-	    @Override
-	    public String getId() {
-	        return PROVIDER_ID;
-	    }
+	@Override
+	public void success(FormContext context) {
 
-
-
-		@Override
-		public List<ProviderConfigProperty> getConfigProperties() {
-		
-			return null;
-		}
-
-
-
-		@Override
-		public void success(FormContext context) {
-			
-		}
+	}
 
 }
