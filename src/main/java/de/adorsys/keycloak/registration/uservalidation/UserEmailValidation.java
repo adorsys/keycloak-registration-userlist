@@ -33,10 +33,10 @@ import org.keycloak.services.validation.Validation;
 public class UserEmailValidation implements FormAction, FormActionFactory {
 
 	private static final String PROVIDER_ID = "registration-user-mail-validation";
-	private static final String EMAIL_WHITELIST_NOT_PROVIDED = "There list of permitted e-mail addresses is not configured. Please consult an administrator.";
+	private static final String EMAIL_WHITELIST_NOT_PROVIDED = "The list of permitted e-mail addresses is not configured. Please consult an administrator.";
 	private static final String EMAIL_NOT_ALLOWED = "This e-mail address can't be used for registration";
-	private static final String EMAIL_READ_FILE = "Problems to read the File with the valid e-mails adress for the user";
-	private static final String EMAIL_CLOSE_FILE = "Problems to close the File with the valid e-mails adress for the user";
+	private static final String EMAIL_READ_FILE = "Problems to read the File with the valid e-mails addresses for registration";
+	private static final String EMAIL_CLOSE_FILE = "Problems to close the File with the valid e-mails addresses for registration";
 
 	private List<String> allowedEmails = new ArrayList<>();
 	private List<FormMessage> errors = new ArrayList<>();
@@ -97,7 +97,10 @@ public class UserEmailValidation implements FormAction, FormActionFactory {
 			String line;
 
 			while (null != (line = bufferedReader.readLine())) {
-				allowedEmails.add(line.trim());
+
+				String eMail = line.trim();
+				if(!eMail.isEmpty())
+					allowedEmails.add(line.trim());
 			}
 
 		} catch (IOException e) {
@@ -117,12 +120,12 @@ public class UserEmailValidation implements FormAction, FormActionFactory {
 
 	@Override
 	public String getDisplayType() {
-		return "Registration User Email Allowed Validation";
+		return "Registration e-mail whitelist";
 	}
 
 	@Override
 	public String getHelpText() {
-		return "Validates the user email adress of the user in validation phase. If the user email adress is in the list of allowed emails it will be valid.";
+		return "Allows the registration only for users with e-mail addresses on the whitelist";
 
 	}
 
